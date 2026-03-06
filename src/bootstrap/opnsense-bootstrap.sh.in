@@ -36,14 +36,16 @@ REPOSITORY=core
 
 DO_ABI=
 DO_BARE=
+DO_BRANCH=
 DO_FACTORY=
 DO_INSECURE=
+DO_MIRROR=
 DO_QUICK=
 DO_TYPE=
 DO_VERBOSE=
 DO_YES=
 
-while getopts A:a:bfiqr:R:t:vVyz OPT; do
+while getopts A:a:bB:fim:qr:R:t:vVyz OPT; do
 	case ${OPT} in
 	A)
 		ACCOUNT="${OPTARG}"
@@ -54,11 +56,17 @@ while getopts A:a:bfiqr:R:t:vVyz OPT; do
 	b)
 		DO_BARE="-b"
 		;;
+	B)
+		DO_BRANCH="${OPTARG}"
+		;;
 	f)
 		DO_FACTORY="-f"
 		;;
 	i)
 		DO_INSECURE="-i"
+		;;
+	m)
+		DO_MIRROR="${OPTARG}"
 		;;
 	q)
 		DO_QUICK="-q"
@@ -205,7 +213,10 @@ fi
 SUBFILE="stable/${RELEASE}"
 SUBDIR="stable-${RELEASE}"
 
-if [ -n "${DO_SNAPSHOT}" ]; then
+if [ -n "${DO_BRANCH}" ]; then
+	SUBDIR="${DO_BRANCH}"
+	SUBFILE="${DO_BRANCH}"
+elif [ -n "${DO_SNAPSHOT}" ]; then
 	SUBDIR="master"
 	SUBFILE="master"
 fi
@@ -228,6 +239,31 @@ if [ -z "${DO_BARE}" ]; then
 fi
 
 make -C ${WORKDIR}/${REPOSITORY}-${SUBDIR} bootstrap DESTDIR= CORE_ABI="${DO_ABI#"-a "}"
+
+# Override repo URL if custom mirror specified via -m
+if [ -n "${DO_MIRROR}" ]; then
+	echo "Overriding package repository to: ${DO_MIRROR}"
+
+	cat > /usr/local/etc/pkg/repos/OPNsense.conf << EOF
+OPNsense: {
+  fingerprints: "/usr/local/etc/pkg/fingerprints/OPNsense",
+  url: "${DO_MIRROR}/main/\${ABI}/${RELEASE}/latest",
+  signature_type: "fingerprints",
+  priority: 11,
+  enabled: yes
+}
+EOF
+
+	# OTSA repo — custom OT Security Appliance packages
+	cat > /usr/local/etc/pkg/repos/otsa.conf << EOF
+otsa: {
+  url: "${DO_MIRROR}/otsa/\${ABI}/latest",
+  enabled: yes,
+  priority: 20,
+  signature_type: "none"
+}
+EOF
+fi
 
 if [ -z "${DO_BARE}" ]; then
 	if [ -n "${DO_FACTORY}" ]; then
