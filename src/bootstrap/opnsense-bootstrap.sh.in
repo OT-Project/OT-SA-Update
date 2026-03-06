@@ -1,0 +1,250 @@
+#!/bin/sh
+
+# Copyright (c) 2015-2025 Franco Fichtner <franco@opnsense.org>
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+# SUCH DAMAGE.
+
+set -e
+
+URL="https://github.com/\${ACCOUNT}/\${REPOSITORY}/archive"
+WORKDIR="/tmp/opnsense-bootstrap"
+RELEASE="%%RELEASE%%"
+FREEBSD="%%FREEBSD%%"
+ACCOUNT=opnsense
+REPOSITORY=core
+
+DO_ABI=
+DO_BARE=
+DO_FACTORY=
+DO_INSECURE=
+DO_QUICK=
+DO_TYPE=
+DO_VERBOSE=
+DO_YES=
+
+while getopts A:a:bfiqr:R:t:vVyz OPT; do
+	case ${OPT} in
+	A)
+		ACCOUNT="${OPTARG}"
+		;;
+	a)
+		DO_ABI="-a ${OPTARG}"
+		;;
+	b)
+		DO_BARE="-b"
+		;;
+	f)
+		DO_FACTORY="-f"
+		;;
+	i)
+		DO_INSECURE="-i"
+		;;
+	q)
+		DO_QUICK="-q"
+		;;
+	R)
+		REPOSITORY="${OPTARG}"
+		;;
+	r)
+		RELEASE=${OPTARG}
+		;;
+	t)
+		DO_TYPE="-t ${OPTARG}"
+		;;
+	V)
+		DO_VERBOSE="-V"
+		;;
+	v)
+		echo "${RELEASE}"
+		exit 0
+		;;
+	y)
+		DO_YES="-y"
+		;;
+	z)
+		DO_SNAPSHOT="-z"
+		;;
+	*)
+		echo "Usage: man ${0##*/}" >&2
+		exit 1
+		;;
+	esac
+done
+
+shift $((OPTIND - 1))
+
+if [ "$(id -u)" != "0" ]; then
+	echo "Must be root." >&2
+	exit 1
+fi
+
+if [ -n "${DO_VERBOSE}" ]; then
+	set -x
+fi
+
+if [ -z "${RELEASE%"%%"*"%%"}" ]; then
+	echo "Must specify an OPNsense release." >&2
+	exit 1
+fi
+
+if [ "$(uname -s)" != "FreeBSD" ]; then
+	echo "Must be FreeBSD." >&2
+	exit 1
+fi
+
+case "$(uname -p)" in
+amd64|aarch64)
+	;;
+*)
+	echo "Must be amd64 or aarch64 architecture." >&2
+	exit 1
+	;;
+esac
+
+if [ -n "${FREEBSD%"%%"*"%%"}" -a "$(uname -r | colrm 4)" != "${FREEBSD%.*}." ]; then
+	echo "Must be a FreeBSD ${FREEBSD%.*} release." >&2
+	exit 1
+fi
+
+if [ -z "${DO_QUICK}" ]; then
+	echo "This utility will attempt to turn this installation into the latest"
+	echo "OPNsense ${RELEASE} release.  All packages will be deleted, the base"
+	echo "system and kernel will be replaced, and if all went well the system"
+	echo "will automatically reboot."
+	echo
+
+	if [ -n "${DO_BARE}" ]; then
+		echo "The selected bare mode will only bootstrap the package repository."
+		echo
+	fi
+fi
+
+if [ -z "${DO_YES}" ]; then
+	echo -n "Proceed with this action? [y/N]: "
+
+	read YN
+	case ${YN} in
+	[yY])
+		;;
+	*)
+		exit 0
+		;;
+	esac
+fi
+
+if [ -n "${DO_FACTORY}" ]; then
+	if [ -z "${DO_YES}" ]; then
+		echo -n "Factory reset mode selected, are you sure? [y/N]: "
+
+		read YN
+		case ${YN} in
+		[yY])
+			;;
+		*)
+			exit 0
+			;;
+		esac
+	fi
+fi
+
+if [ -n "${DO_INSECURE}" ]; then
+	if [ -z "${DO_YES}" ]; then
+		echo -n "Insecure mode selected, are you sure? [y/N]: "
+
+		read YN
+		case ${YN} in
+		[yY])
+			;;
+		*)
+			exit 0
+			;;
+		esac
+	fi
+fi
+
+if [ -n "${DO_QUICK}" ]; then
+	if [ -n "${DO_FACTORY}" ]; then
+		rm -rf /conf/*
+	fi
+
+	exec opnsense-update ${DO_INSECURE} ${DO_VERBOSE} ${DO_TYPE} -bkpf
+fi
+
+rm -rf /usr/local/etc/pkg
+
+rm -rf "${WORKDIR:?}"/*
+mkdir -p ${WORKDIR}
+
+export ASSUME_ALWAYS_YES=yes
+
+if [ -n "${DO_INSECURE}" ]; then
+	export SSL_NO_VERIFY_PEER=yes
+fi
+
+SUBFILE="stable/${RELEASE}"
+SUBDIR="stable-${RELEASE}"
+
+if [ -n "${DO_SNAPSHOT}" ]; then
+	SUBDIR="master"
+	SUBFILE="master"
+fi
+
+if [ -z "${DO_ABI}" ]; then
+	DO_ABI="-a ${RELEASE}"
+fi
+
+eval URL="${URL}"
+
+fetch -o ${WORKDIR}/${REPOSITORY}.tar.gz "${URL}/${SUBFILE}.tar.gz"
+tar -C ${WORKDIR} -xf ${WORKDIR}/${REPOSITORY}.tar.gz
+
+if [ -z "${DO_BARE}" ]; then
+	if pkg -N; then
+		pkg unlock -ya
+		pkg delete -fa
+	fi
+	rm -rf /var/db/pkg/*
+fi
+
+make -C ${WORKDIR}/${REPOSITORY}-${SUBDIR} bootstrap DESTDIR= CORE_ABI="${DO_ABI#"-a "}"
+
+if [ -z "${DO_BARE}" ]; then
+	if [ -n "${DO_FACTORY}" ]; then
+		rm -rf /conf/*
+	fi
+
+	if [ -z "${DO_TYPE}" ]; then
+		DO_TYPE="-t $(make -C ${WORKDIR}/${REPOSITORY}-${SUBDIR} -v CORE_NAME)"
+	fi
+
+	pkg bootstrap
+	pkg install "${DO_TYPE#"-t "}"
+	echo "${RELEASE}" > /usr/local/opnsense/version/pkgs
+
+	# beyond this point verify everything
+	unset SSL_NO_VERIFY_PEER
+
+	opnsense-update ${DO_VERBOSE} -bkf
+	reboot
+fi
