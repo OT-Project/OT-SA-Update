@@ -255,14 +255,14 @@ OPNsense: {
 EOF
 
 	# OTSA repo — custom OT Security Appliance packages
-	cat > /usr/local/etc/pkg/repos/otsa.conf << EOF
-otsa: {
-  url: "${DO_MIRROR}/otsa/\${ABI}/latest",
-  enabled: yes,
-  priority: 20,
-  signature_type: "none"
-}
-EOF
+# 	cat > /usr/local/etc/pkg/repos/otsa.conf << EOF
+# otsa: {
+#   url: "${DO_MIRROR}/otsa/\${ABI}/latest",
+#   enabled: yes,
+#   priority: 20,
+#   signature_type: "none"
+# }
+# EOF
 fi
 
 if [ -z "${DO_BARE}" ]; then
