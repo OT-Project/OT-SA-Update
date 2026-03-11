@@ -256,7 +256,7 @@ if [ -n "${DO_MIRROR}" ]; then
 	cat > /usr/local/etc/pkg/repos/OPNsense.conf << EOF
 OPNsense: {
   fingerprints: "/usr/local/etc/pkg/fingerprints/OPNsense",
-  url: "${DO_MIRROR}/main/\${ABI}/${RELEASE}/latest",
+  url: "${DO_MIRROR}/\${ABI}/${RELEASE}/latest",
   signature_type: "fingerprints",
   priority: 11,
   enabled: yes
@@ -266,7 +266,7 @@ EOF
 	# OTSA repo — custom OT Security Appliance packages
 # 	cat > /usr/local/etc/pkg/repos/otsa.conf << EOF
 # otsa: {
-#   url: "${DO_MIRROR}/otsa/\${ABI}/latest",
+#   url: "${DO_MIRROR}/\${ABI}/${RELEASE}/otsa",
 #   enabled: yes,
 #   priority: 20,
 #   signature_type: "none"
