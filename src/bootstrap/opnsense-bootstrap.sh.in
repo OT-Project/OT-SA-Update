@@ -237,6 +237,7 @@ else
 	fetch -o ${WORKDIR}/${REPOSITORY}.tar.gz "${URL}/${SUBFILE}.tar.gz"
 fi
 tar -C ${WORKDIR} -xf ${WORKDIR}/${REPOSITORY}.tar.gz
+EXTRACTED_DIR=$(tar -tf ${WORKDIR}/${REPOSITORY}.tar.gz | head -1 | cut -f1 -d"/")
 
 if [ -z "${DO_BARE}" ]; then
 	if pkg -N; then
@@ -246,7 +247,7 @@ if [ -z "${DO_BARE}" ]; then
 	rm -rf /var/db/pkg/*
 fi
 
-make -C ${WORKDIR}/${REPOSITORY}-${SUBDIR} bootstrap DESTDIR= CORE_ABI="${DO_ABI#"-a "}"
+make -C ${WORKDIR}/${EXTRACTED_DIR} bootstrap DESTDIR= CORE_ABI="${DO_ABI#"-a "}"
 
 # Override repo URL if custom mirror specified via -m
 if [ -n "${DO_MIRROR}" ]; then
@@ -279,7 +280,7 @@ if [ -z "${DO_BARE}" ]; then
 	fi
 
 	if [ -z "${DO_TYPE}" ]; then
-		DO_TYPE="-t $(make -C ${WORKDIR}/${REPOSITORY}-${SUBDIR} -v CORE_NAME)"
+		DO_TYPE="-t $(make -C ${WORKDIR}/${EXTRACTED_DIR} -v CORE_NAME)"
 	fi
 
 	pkg bootstrap
