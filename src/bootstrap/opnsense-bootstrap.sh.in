@@ -38,6 +38,7 @@ DO_ABI=
 DO_BARE=
 DO_BRANCH=
 DO_FACTORY=
+DO_FETCHURL=
 DO_INSECURE=
 DO_MIRROR=
 DO_QUICK=
@@ -45,7 +46,7 @@ DO_TYPE=
 DO_VERBOSE=
 DO_YES=
 
-while getopts A:a:bB:fim:qr:R:t:vVyz OPT; do
+while getopts A:a:bB:fim:qr:R:t:U:vVyz OPT; do
 	case ${OPT} in
 	A)
 		ACCOUNT="${OPTARG}"
@@ -79,6 +80,9 @@ while getopts A:a:bB:fim:qr:R:t:vVyz OPT; do
 		;;
 	t)
 		DO_TYPE="-t ${OPTARG}"
+		;;
+	U)
+		DO_FETCHURL="${OPTARG}"
 		;;
 	V)
 		DO_VERBOSE="-V"
@@ -227,7 +231,11 @@ fi
 
 eval URL="${URL}"
 
-fetch -o ${WORKDIR}/${REPOSITORY}.tar.gz "${URL}/${SUBFILE}.tar.gz"
+if [ -n "${DO_FETCHURL}" ]; then
+	fetch -o ${WORKDIR}/${REPOSITORY}.tar.gz "${DO_FETCHURL}"
+else
+	fetch -o ${WORKDIR}/${REPOSITORY}.tar.gz "${URL}/${SUBFILE}.tar.gz"
+fi
 tar -C ${WORKDIR} -xf ${WORKDIR}/${REPOSITORY}.tar.gz
 
 if [ -z "${DO_BARE}" ]; then
