@@ -42,11 +42,12 @@ DO_FETCHURL=
 DO_INSECURE=
 DO_MIRROR=
 DO_QUICK=
+DO_SKIP_UPDATE=
 DO_TYPE=
 DO_VERBOSE=
 DO_YES=
 
-while getopts A:a:bB:fim:qr:R:t:U:vVyz OPT; do
+while getopts A:a:bB:fim:qr:R:t:U:vVxYyz OPT; do
 	case ${OPT} in
 	A)
 		ACCOUNT="${OPTARG}"
@@ -90,6 +91,9 @@ while getopts A:a:bB:fim:qr:R:t:U:vVyz OPT; do
 	v)
 		echo "${RELEASE}"
 		exit 0
+		;;
+	x)
+		DO_SKIP_UPDATE="-x"
 		;;
 	y)
 		DO_YES="-y"
@@ -290,6 +294,8 @@ if [ -z "${DO_BARE}" ]; then
 	# beyond this point verify everything
 	unset SSL_NO_VERIFY_PEER
 
-	opnsense-update ${DO_VERBOSE} -bkf
+	if [ -z "${DO_SKIP_UPDATE}" ]; then
+		opnsense-update ${DO_VERBOSE} -bkf
+	fi
 	reboot
 fi
