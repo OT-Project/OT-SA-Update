@@ -41,13 +41,14 @@ DO_FACTORY=
 DO_FETCHURL=
 DO_INSECURE=
 DO_MIRROR=
+DO_PIN_VERSION=
 DO_QUICK=
 DO_SKIP_UPDATE=
 DO_TYPE=
 DO_VERBOSE=
 DO_YES=
 
-while getopts A:a:bB:fim:qr:R:t:U:vVxYyz OPT; do
+while getopts A:a:bB:fim:p:qr:R:t:U:vVyz OPT; do
 	case ${OPT} in
 	A)
 		ACCOUNT="${OPTARG}"
@@ -70,6 +71,11 @@ while getopts A:a:bB:fim:qr:R:t:U:vVxYyz OPT; do
 	m)
 		DO_MIRROR="${OPTARG}"
 		;;
+	p)
+		DO_PIN_VERSION="${OPTARG}"
+		# Always skip update if we are pinning
+		DO_SKIP_UPDATE="-x"
+		;;
 	q)
 		DO_QUICK="-q"
 		;;
@@ -91,9 +97,6 @@ while getopts A:a:bB:fim:qr:R:t:U:vVxYyz OPT; do
 	v)
 		echo "${RELEASE}"
 		exit 0
-		;;
-	x)
-		DO_SKIP_UPDATE="-x"
 		;;
 	y)
 		DO_YES="-y"
@@ -257,10 +260,16 @@ make -C ${WORKDIR}/${EXTRACTED_DIR} bootstrap DESTDIR= CORE_ABI="${DO_ABI#"-a "}
 if [ -n "${DO_MIRROR}" ]; then
 	echo "Overriding package repository to: ${DO_MIRROR}"
 
+	if [ -n "${DO_PIN_VERSION}" ]; then
+		REPO_URL="${DO_MIRROR}/\${ABI}/${RELEASE}/MINT/${DO_PIN_VERSION}/latest"
+	else
+		REPO_URL="${DO_MIRROR}/\${ABI}/${RELEASE}/latest"
+	fi
+
 	cat > /usr/local/etc/pkg/repos/OPNsense.conf << EOF
 OPNsense: {
   fingerprints: "/usr/local/etc/pkg/fingerprints/OPNsense",
-  url: "${DO_MIRROR}/\${ABI}/${RELEASE}/latest",
+  url: "${REPO_URL}",
   signature_type: "fingerprints",
   priority: 11,
   enabled: yes
