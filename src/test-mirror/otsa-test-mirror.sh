@@ -74,6 +74,18 @@ TMPDIR=$(mktemp -d -t otsa-test-mirror) || {
 }
 trap "rm -rf \"${TMPDIR}\"" EXIT INT TERM
 
+# Normalise URL: callers often paste a full repo path like
+# `https://pkg.opnsense.org/FreeBSD:14:amd64/26.1/` (i.e. with ABI + release
+# already embedded). Strip trailing slashes, then strip a trailing
+# `/<PKG_ABI>/<ABI>` if present, so the rest of the script can append the
+# canonical `/${PKG_ABI}/${ABI}/latest/...` suffix without doubling the path.
+URL=${URL%/}
+case "${URL}" in
+    *"/${PKG_ABI}/${ABI}")
+        URL=${URL%"/${PKG_ABI}/${ABI}"}
+        ;;
+esac
+
 # Step 1: DNS resolve
 HOST=${URL#*://}
 HOST=${HOST%%/*}
@@ -84,13 +96,25 @@ if ! host -t A "${HOST}" >/dev/null 2>&1 && ! host -t AAAA "${HOST}" >/dev/null 
     exit 0
 fi
 
-# Step 2: HTTP HEAD probe to meta.txz under <URL>/<PKG_ABI>/<ABI>/latest/meta.txz
-META_URL="${URL}/${PKG_ABI}/${ABI}/latest/meta.txz"
-if ! fetch -T 10 -q --no-redirect -o /dev/null "${META_URL}" 2>/dev/null; then
-    if ! fetch -T 10 -q -o /dev/null "${META_URL}" 2>/dev/null; then
-        printf '{"status":"failure","step":"http","url":"%s","message":"meta.txz unreachable"}\n' "${META_URL}"
-        exit 0
+# Step 2: HTTP probe to repo metadata under <URL>/<PKG_ABI>/<ABI>/latest/.
+# pkg metadata filename changed across OPNsense releases:
+#   - 25.x and older  -> meta.txz  (legacy compressed tar)
+#   - 26.1 and newer  -> meta      (raw, packed differently)
+# Probe `meta` first (newer + more likely target for OT appliance), fall back
+# to `meta.txz` for backward compatibility.
+LATEST_URL="${URL}/${PKG_ABI}/${ABI}/latest"
+PROBED=""
+for META_NAME in meta meta.txz; do
+    CANDIDATE="${LATEST_URL}/${META_NAME}"
+    if fetch -T 10 -q --no-redirect -o /dev/null "${CANDIDATE}" 2>/dev/null ||
+       fetch -T 10 -q -o /dev/null "${CANDIDATE}" 2>/dev/null; then
+        PROBED="${CANDIDATE}"
+        break
     fi
+done
+if [ -z "${PROBED}" ]; then
+    printf '{"status":"failure","step":"http","url":"%s","message":"repo metadata (meta, meta.txz) unreachable under latest/"}\n' "${LATEST_URL}"
+    exit 0
 fi
 
 # Step 3: Fetch metadata + verify signature via pkg using an isolated DB.
