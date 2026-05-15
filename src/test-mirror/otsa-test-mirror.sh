@@ -75,11 +75,18 @@ TMPDIR=$(mktemp -d -t otsa-test-mirror) || {
 trap "rm -rf \"${TMPDIR}\"" EXIT INT TERM
 
 # Normalise URL: callers often paste a full repo path like
-# `https://pkg.opnsense.org/FreeBSD:14:amd64/26.1/` (i.e. with ABI + release
-# already embedded). Strip trailing slashes, then strip a trailing
-# `/<PKG_ABI>/<ABI>` if present, so the rest of the script can append the
-# canonical `/${PKG_ABI}/${ABI}/latest/...` suffix without doubling the path.
+# `https://pkg.opnsense.org/FreeBSD:14:amd64/26.1/latest/` (i.e. with ABI,
+# release, and the canonical `/latest` suffix already embedded). Strip
+# trailing slashes, optionally strip a trailing `/latest`, then strip a
+# trailing `/<PKG_ABI>/<ABI>` if present. After this, URL holds the bare
+# root and the rest of the script can append `/${PKG_ABI}/${ABI}/latest/...`
+# without doubling the path.
 URL=${URL%/}
+case "${URL}" in
+    *"/latest")
+        URL=${URL%/latest}
+        ;;
+esac
 case "${URL}" in
     *"/${PKG_ABI}/${ABI}")
         URL=${URL%"/${PKG_ABI}/${ABI}"}
