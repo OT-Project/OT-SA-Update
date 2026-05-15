@@ -35,7 +35,7 @@ set -u
 
 usage() {
     echo "usage: otsa-test-mirror <mirror-url> [abi]" >&2
-    echo "  mirror-url: e.g. https://repo.kamiyuri.dev/main" >&2
+    echo "  mirror-url: e.g. http://192.168.150.49 (root URL, no trailing slash)" >&2
     echo "  abi:        OPNsense ABI, defaults to opnsense-version -x" >&2
     exit 64
 }
